@@ -1,9 +1,9 @@
-'use client';
-import Link from 'next/link';
-import { RxHamburgerMenu, RxCross2 } from 'react-icons/rx';
+"use client";
+import Link from "next/link";
+import { RxHamburgerMenu, RxCross2 } from "react-icons/rx";
 
-import styles from './Navbar.module.scss';
-import useToggle from '@hooks/useToggle';
+import styles from "./Navbar.module.scss";
+import useToggle from "@hooks/useToggle";
 
 interface NavLink {
   name: string;
