@@ -1,0 +1,48 @@
+/* LotDrawer.css */
+.lot-drawer-container {
+  width: 100%;
+  max-width: 800px; /* Limit the width to keep it centered */
+  padding: 20px;
+  margin-top: 20px;
+  text-align: center;
+}
+
+.draw-lot-button {
+  background-color: #4CAF50;
+  color: white;
+  padding: 15px 30px;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.draw-lot-button:hover {
+  background-color: #45a049;
+}
+
+.lot-details {
+  margin-top: 20px;
+  background-color: rgba(255, 255, 255, 0.9); /* Slight transparency for better aesthetics */
+  border: 1px solid #ddd;
+  padding: 20px;
+  width: calc(100% - 40px); /* Make the lot details cover the full available width minus padding */
+  max-width: 100%; /* Ensure it doesn't restrict itself */
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Add a subtle shadow for depth */
+}
+
+.lot-details h3,
+.lot-details h4,
+.lot-details p {
+  margin: 10px 0; /* Reduce the space between text elements */
+  color: #333;
+  text-align: left; /* Align text to the left to reduce visual clutter */
+}
+
+.error-message {
+  color: red;
+  font-size: 16px;
+  margin-top: 10px;
+}

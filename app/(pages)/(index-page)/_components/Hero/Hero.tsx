@@ -1,6 +1,6 @@
-import Image from 'next/image';
+import Image from "next/image";
 
-import styles from './Hero.module.scss';
+import styles from "./Hero.module.scss";
 
 export default function Hero() {
   return (
@@ -10,11 +10,17 @@ export default function Hero() {
           src="/index/city.jpg"
           alt="serene forest scene in the night"
           fill
-          style={{ objectFit: 'cover', opacity: '0.6' }}
+          style={{ objectFit: "cover", opacity: "0.6" }}
         />
       </div>
       <div className={styles.welcome}>
-        <h1>PLATFORM TEAM NEXT.JS TEMPLATE</h1>
+        <h1>DevinAI</h1>
+        <p className={styles.welcome_sub}>
+          Your AI companion for all your needs.
+        </p>
+        <p className={styles.welcome_sub}>
+          Your AI companion for all your needs.
+        </p>
       </div>
     </div>
   );
