@@ -20,7 +20,7 @@ $scale: 1.04;
     justify-content: space-between;
     align-items: center;
 
-    background-color: var(--primary);
+    background-color: var(--light-background);
 
     >h2 {
         color: var(--text-light);
@@ -38,7 +38,7 @@ $scale: 1.04;
         display: flex;
         flex-direction: row;
         gap: var(--spacer);
-        color: var(--text-light);
+        color: var(--text-dark);
 
         >* {
             padding: var(--tiny-spacer);
@@ -79,6 +79,12 @@ $scale: 1.04;
         .links.active {
             height: calc(100vh - var(--navbar-height));
         }
+
+        .getStarted {
+            width: 100%;
+            padding: var(--small-spacer);
+            
+        }
     }
 
     .menu {
@@ -89,7 +95,7 @@ $scale: 1.04;
         cursor: pointer;
 
         * {
-            color: var(--text-light);
+            color: black;
         }
         @include mixins.tablet {
             display: flex;
@@ -101,4 +107,21 @@ $scale: 1.04;
     .menu:hover {
         transform: scale($scale);
     }
+}
+
+.getStarted {
+    background-color: black;
+    color: white;    
+    padding: var(--medium-spacer);
+    border-radius: 0.5rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tiny-spacer);
+    letter-spacing: -0.025rem;
+    text-align: center;
+}
+
+.rounded {
+    border-radius: 0.5rem;
 }

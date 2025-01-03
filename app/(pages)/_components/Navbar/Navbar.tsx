@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { RxHamburgerMenu, RxCross2 } from "react-icons/rx";
-
+import logo1 from "/Users/paul/Desktop/includeProjectStarter/public/index/Logo1.jpg";
 import styles from "./Navbar.module.scss";
 import useToggle from "@hooks/useToggle";
 
@@ -19,7 +19,13 @@ export default function Navbar({ navLinks }: { navLinks: NavLink[] }) {
   return (
     <div className={styles.relative_wrapper}>
       <div className={styles.container}>
-        <h2>LOGO IMG</h2>
+        <img
+          src={logo1.src}
+          alt="Logo"
+          height={40}
+          width={40}
+          className={styles.rounded}
+        />
         <div className={styles.nav_container}>
           <div className={`${styles.links} ${active ? styles.active : null}`}>
             {navLinks.map((link) => {
