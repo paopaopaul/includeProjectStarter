@@ -1,9 +1,10 @@
-"use client";
-import Link from "next/link";
-import { RxHamburgerMenu, RxCross2 } from "react-icons/rx";
-import logo1 from "/Users/paul/Desktop/includeProjectStarter/public/index/Logo1.jpg";
-import styles from "./Navbar.module.scss";
-import useToggle from "@hooks/useToggle";
+'use client';
+import Link from 'next/link';
+import Image from 'next/image';
+import { RxHamburgerMenu, RxCross2 } from 'react-icons/rx';
+import logo1 from '/Users/paul/Desktop/includeProjectStarter/public/index/Logo1.jpg';
+import styles from './Navbar.module.scss';
+import useToggle from '@hooks/useToggle';
 
 interface NavLink {
   name: string;
@@ -19,8 +20,8 @@ export default function Navbar({ navLinks }: { navLinks: NavLink[] }) {
   return (
     <div className={styles.relative_wrapper}>
       <div className={styles.container}>
-        <img
-          src={logo1.src}
+        <Image
+          src={logo1}
           alt="Logo"
           height={40}
           width={40}

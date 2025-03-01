@@ -56,3 +56,28 @@ h4 {
 p {
     font-size: 1rem;
 }
+
+button {  
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    letter-spacing: -0.025rem;
+    width: auto;
+    justify-content: center;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+button.buttonPrimary {
+    background-color: black;
+    color: white;
+}
+
+button.buttonText {
+    background-color: transparent;
+    color: black;
+}

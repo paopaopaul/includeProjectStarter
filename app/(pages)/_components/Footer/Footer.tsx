@@ -1,5 +1,6 @@
-import Link from "next/link";
-import styles from "./Footer.module.scss";
+import Link from 'next/link';
+import styles from './Footer.module.scss';
+import Image from 'next/image';
 
 interface NavLink {
   name: string;
@@ -10,39 +11,22 @@ export default function Footer({ navLinks }: { navLinks: NavLink[] }) {
   return (
     <div className={styles.container}>
       <div className={styles.content_container}>
-        <div className={styles.description}>
-          <h2>DevinAI</h2>
-          <p>放一个logo 公司的地址等信息</p>
+        <div>
+          <Image src="/index/Logo1.jpg" alt="logo" width={40} height={40} />
         </div>
         <div className={styles.navigation}>
-          <div className={styles.learn_more}>
-            <h2>Learn more</h2>
-            <div className={styles.learn_more_links}>
-              {navLinks.map((link) => {
-                return (
-                  <Link key={link.slug} href={link.slug}>
-                    {link.name}
-                  </Link>
-                );
-              })}
-            </div>
+          <div className={styles.navigation_links}>
+            {navLinks.map((link) => {
+              return (
+                <Link key={link.slug} href={link.slug}>
+                  {link.name}
+                </Link>
+              );
+            })}
           </div>
-          <div className={styles.projects}>
-            <h2>Projects</h2>
-            <div className={styles.project_link_columns}>
-              <div>
-                {/* Should be done with a loop */}
-                <Link href="/project/1">算命方法</Link>
-                <Link href="/project/2">算命方法</Link>
-                <Link href="/project/3">算命方法</Link>
-              </div>
-              <div>
-                <Link href="/project/4">算命方法</Link>
-                <Link href="/project/5">算命方法</Link>
-                <Link href="/project/6">算命方法</Link>
-              </div>
-            </div>
-          </div>
+          <p className={styles.copyright}>
+            © 2024 DevinAI, Inc. All rights reserved.
+          </p>
         </div>
       </div>
     </div>
