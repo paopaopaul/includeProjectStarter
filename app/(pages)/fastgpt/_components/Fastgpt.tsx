@@ -20,33 +20,29 @@ export default function FastGptIntegrationPage() {
     setError(null);
 
     try {
-      // Replace with your actual API endpoint for FastGPT
-      const apiUrl = 'https://api.fastgpt.your-domain.com/v1/chat';
-
-      const response = await fetch(apiUrl, {
+      // Call our own API route which will then call FastGPT
+      const response = await fetch('/api/fastgpt', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Include your API key if needed
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_FASTGPT_API_KEY}`,
         },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: userInput }],
-          // Add any other parameters your FastGPT API requires
-          model: 'your-custom-model',
-          temperature: 0.7,
-          max_tokens: 1000,
+          userInput,
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
+        const errorData = await response.json();
+        console.error('Error details:', errorData);
+        throw new Error(
+          errorData.error || `API request failed with status ${response.status}`
+        );
       }
 
       const data = await response.json();
       setResponse(data);
     } catch (err) {
-      console.error('Error calling FastGPT API:', err);
+      console.error('Error calling API:', err);
       if (err instanceof Error) {
         setError(err.message);
       } else {
@@ -60,9 +56,12 @@ export default function FastGptIntegrationPage() {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>AI Assistant</h1>
+      <p className={styles.subtitle}>
+        Ask a question and get an intelligent response powered by FastGPT
+      </p>
 
       <div className={styles.cardContainer}>
-        <form onSubmit={handleSubmit} className={styles.formGroup}>
+        <form onSubmit={handleSubmit}>
           <div className={styles.formGroup}>
             <label htmlFor="userInput" className={styles.formLabel}>
               Ask a question or provide some text to analyze
