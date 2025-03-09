@@ -13,30 +13,39 @@ export async function POST(request) {
       );
     }
 
-    // FastGPT API configuration - update with your specific workflow ID from your DivinAI workflow
-    const workflowId =
-      process.env.FASTGPT_WORKFLOW_ID || '677cd3109c52479ad3f31c3a'; // Default to your workflow ID
+    // FastGPT API configuration
+    const apiKey = process.env.FASTGPT_API_KEY;
+    // This should be your AppId from FastGPT
+    const appId = process.env.FASTGPT_APP_ID;
+    // FastGPT API URL (check if this matches your BaseURL in the docs)
     const apiUrl =
       process.env.FASTGPT_API_URL ||
-      'https://api.fastgpt.com/api/v1/chat/completions';
-    const apiKey = process.env.FASTGPT_API_KEY;
+      'https://api.fastgpt.in/api/v1/chat/completions';
 
-    console.log('Using API URL:', apiUrl);
-    console.log('Using workflow ID:', workflowId);
-
-    if (!apiKey) {
-      console.error('FastGPT API key is not configured');
+    if (!apiKey || !appId) {
+      console.error('FastGPT API key or AppId is not configured');
       return NextResponse.json(
-        { error: 'API configuration error. Please contact support.' },
+        {
+          error:
+            'API configuration error. Please check your environment variables.',
+        },
         { status: 500 }
       );
     }
 
-    // Prepare the request for FastGPT with the specific workflow
+    console.log('Calling FastGPT API with:', { appId, apiUrl });
+
+    // Prepare the request for FastGPT based on their API documentation
     const requestBody = {
-      appId: workflowId, // This should be your DivinAI workflow ID
-      messages: [{ role: 'user', content: userInput }],
-      stream: false, // Set to true if you want streaming responses
+      chatId: `web-${Date.now()}`, // Create a unique chatId
+      stream: false,
+      detail: false,
+      messages: [
+        {
+          role: 'user',
+          content: userInput,
+        },
+      ],
     };
 
     console.log('Request to FastGPT:', JSON.stringify(requestBody));
@@ -45,8 +54,8 @@ export async function POST(request) {
     const fastgptResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
     });

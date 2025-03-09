@@ -1,20 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import styles from './Fastgpt.module.scss';
 
-export default function FastGptIntegrationPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  interface FastGptResponse {
-    choices?: { message?: { content?: string } }[];
-  }
+// Define FastGPT response interface based on the API documentation
+interface FastGptResponseChoice {
+  message: {
+    role: string;
+    content: string;
+  };
+  finish_reason: string;
+  index: number;
+}
 
+interface FastGptResponse {
+  id?: string;
+  model?: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  choices?: FastGptResponseChoice[];
+}
+
+export default function FastGptIntegrationPage() {
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<FastGptResponse | null>(null);
-  const [userInput, setUserInput] = useState('');
+  const [userInput, setUserInput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -40,6 +57,7 @@ export default function FastGptIntegrationPage() {
       }
 
       const data = await response.json();
+      console.log('FastGPT response:', data);
       setResponse(data);
     } catch (err) {
       console.error('Error calling API:', err);
@@ -51,6 +69,19 @@ export default function FastGptIntegrationPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Extract FastGPT response content
+  const getResponseContent = (): string => {
+    if (!response) return '';
+
+    // Try different response formats based on FastGPT documentation
+    if (response.choices && response.choices[0]?.message?.content) {
+      return response.choices[0].message.content;
+    }
+
+    // Return formatted JSON as fallback
+    return JSON.stringify(response, null, 2);
   };
 
   return (
@@ -95,10 +126,7 @@ export default function FastGptIntegrationPage() {
         {response && (
           <div className={styles.responseContainer}>
             <h2 className={styles.responseTitle}>Response:</h2>
-            <div className={styles.responseContent}>
-              {response.choices?.[0]?.message?.content ||
-                JSON.stringify(response, null, 2)}
-            </div>
+            <div className={styles.responseContent}>{getResponseContent()}</div>
           </div>
         )}
       </div>
