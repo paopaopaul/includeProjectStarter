@@ -42,8 +42,8 @@ export async function POST(request) {
       detail: false,
       messages: [
         {
-          role: 'user',
           content: userInput,
+          role: 'user',
         },
       ],
     };
