@@ -15,12 +15,12 @@ export async function POST(request) {
 
     // FastGPT API configuration
     const apiKey = process.env.FASTGPT_API_KEY;
-    // This should be your AppId from FastGPT
+    // This should be your AppId from FastGPT, but is optional in the request
+    // since you're using a special API key that already has the AppId embedded
     const appId = process.env.FASTGPT_APP_ID;
-    // FastGPT API URL (check if this matches your BaseURL in the docs)
-    const apiUrl =
-      process.env.FASTGPT_API_URL ||
-      'https://api.fastgpt.in/api/v1/chat/completions';
+
+    // FastGPT API URL - the correct endpoint from documentation
+    const apiUrl = 'https://api.fastgpt.in/api/v1/chat/completions';
 
     if (!apiKey || !appId) {
       console.error('FastGPT API key or AppId is not configured');
@@ -33,9 +33,12 @@ export async function POST(request) {
       );
     }
 
-    console.log('Calling FastGPT API with:', { appId, apiUrl });
+    console.log(
+      'Calling FastGPT API with input:',
+      userInput.substring(0, 50) + '...'
+    );
 
-    // Prepare the request for FastGPT based on their API documentation
+    // Prepare the request for FastGPT based on the documentation
     const requestBody = {
       chatId: `web-${Date.now()}`, // Create a unique chatId
       stream: false,
@@ -48,8 +51,6 @@ export async function POST(request) {
       ],
     };
 
-    console.log('Request to FastGPT:', JSON.stringify(requestBody));
-
     // Call FastGPT API
     const fastgptResponse = await fetch(apiUrl, {
       method: 'POST',
@@ -61,28 +62,21 @@ export async function POST(request) {
     });
 
     if (!fastgptResponse.ok) {
-      let errorText = '';
-      try {
-        errorText = await fastgptResponse.text();
-      } catch (e) {
-        errorText = 'Could not retrieve error details';
-      }
-
+      let errorText = await fastgptResponse.text();
       console.error('FastGPT API error:', errorText);
       console.error('Status:', fastgptResponse.status);
-      console.error('Status Text:', fastgptResponse.statusText);
 
       return NextResponse.json(
         {
           error: `FastGPT API error: ${fastgptResponse.status}`,
           details: errorText,
-          url: apiUrl,
         },
         { status: fastgptResponse.status }
       );
     }
 
     const data = await fastgptResponse.json();
+    console.log('FastGPT response received successfully');
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in FastGPT API route:', error.message);

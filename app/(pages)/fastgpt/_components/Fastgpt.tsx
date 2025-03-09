@@ -30,14 +30,17 @@ export default function FastGptIntegrationPage() {
   const [response, setResponse] = useState<FastGptResponse | null>(null);
   const [userInput, setUserInput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setDebugInfo(null);
 
     try {
       // Call our own API route which will then call FastGPT
+      console.log('Sending request to /api/fastgpt');
       const response = await fetch('/api/fastgpt', {
         method: 'POST',
         headers: {
@@ -48,15 +51,26 @@ export default function FastGptIntegrationPage() {
         }),
       });
 
+      // Get the full response regardless of status code
+      const responseText = await response.text();
+      let data;
+
+      try {
+        // Try to parse as JSON
+        data = JSON.parse(responseText);
+      } catch (e) {
+        // If not valid JSON, show the raw text for debugging
+        setDebugInfo(`Raw API response (not valid JSON): ${responseText}`);
+        throw new Error('Invalid response format from API');
+      }
+
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error details:', errorData);
+        console.error('Error details:', data);
         throw new Error(
-          errorData.error || `API request failed with status ${response.status}`
+          data.error || `API request failed with status ${response.status}`
         );
       }
 
-      const data = await response.json();
       console.log('FastGPT response:', data);
       setResponse(data);
     } catch (err) {
@@ -120,6 +134,15 @@ export default function FastGptIntegrationPage() {
           <div className={styles.errorContainer}>
             <p className={styles.errorTitle}>Error</p>
             <p>{error}</p>
+          </div>
+        )}
+
+        {debugInfo && (
+          <div className={styles.errorContainer}>
+            <p className={styles.errorTitle}>Debug Information</p>
+            <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
+              {debugInfo}
+            </pre>
           </div>
         )}
 
