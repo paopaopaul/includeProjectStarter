@@ -4,7 +4,15 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { userInput } = body;
+    const { userInput, chatId, isInteractive } = body;
+
+    if (!userInput && !isInteractive) {
+      return NextResponse.json(
+        { error: 'Invalid input. Please provide userInput or isInteractive.' },
+        { status: 400 }
+      );
+    }
+    // If isInteractive is true, userInput must be a string
 
     if (!userInput || typeof userInput !== 'string') {
       return NextResponse.json(
@@ -20,10 +28,10 @@ export async function POST(request) {
     const appId = process.env.FASTGPT_APP_ID;
 
     // FastGPT API URL - the correct endpoint from documentation
-    const apiUrl = 'https://api.fastgpt.in/api/v1/chat/completions';
+    const apiUrl = process.env.FASTGPT_API_URL;
 
     if (!apiKey || !appId) {
-      console.error('FastGPT API key or AppId is not configured');
+      console.error('FastGPT API key is not configured');
       return NextResponse.json(
         {
           error:
@@ -38,18 +46,24 @@ export async function POST(request) {
       userInput.substring(0, 50) + '...'
     );
 
-    // Prepare the request for FastGPT based on the documentation
+    // Prepare the request for FastGPT
     const requestBody = {
-      chatId: `web-${Date.now()}`, // Create a unique chatId
+      // Use the provided chatId or generate a new one
+      chatId: chatId || `web-${Date.now()}`,
       stream: false,
-      detail: false,
+      // Set detail to true to get interactive node information
+      detail: true,
       messages: [
         {
+          // If in interactive mode, the content is already a JSON string
+          // If not, use it as regular content
           content: userInput,
           role: 'user',
         },
       ],
     };
+
+    console.log('FastGPT request body:', JSON.stringify(requestBody, null, 2));
 
     // Call FastGPT API
     const fastgptResponse = await fetch(apiUrl, {
@@ -76,7 +90,11 @@ export async function POST(request) {
     }
 
     const data = await fastgptResponse.json();
-    console.log('FastGPT response received successfully');
+    console.log(
+      'FastGPT response received successfully:',
+      JSON.stringify(data, null, 2)
+    );
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in FastGPT API route:', error.message);
