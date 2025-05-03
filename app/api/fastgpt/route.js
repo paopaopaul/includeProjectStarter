@@ -57,7 +57,7 @@ export async function POST(request) {
         {
           // If in interactive mode, the content is already a JSON string
           // If not, use it as regular content
-          content: userInput,
+          content: isInteractive ? userInput : userInput,
           role: 'user',
         },
       ],

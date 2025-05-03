@@ -64,14 +64,7 @@ export default function FastGptIntegrationPage() {
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   // State for interactive mode
-  const [chatId, setChatId] = useState<string>(`web-${Date.now()}`);
-  if (!chatId) {
-    setChatId(`web-${Date.now()}`);
-  }
-  // State to track if we're in interactive mode
-  // This will be set to true if FastGPT response indicates interactivity
-  // and will control how we render the input form
-  // and handle form submission
+  const [chatId] = useState<string>(`web-${Date.now()}`);
   const [isInteractiveMode, setIsInteractiveMode] = useState<boolean>(false);
   const [interactiveData, setInteractiveData] =
     useState<InteractiveData | null>(null);
@@ -108,6 +101,8 @@ export default function FastGptIntegrationPage() {
       let payload;
 
       if (isInteractiveMode) {
+        const serializedFormValues = JSON.stringify(formValues);
+        console.log('Serialized form values:', serializedFormValues);
         // For interactive mode, serialize the form values as content
         payload = {
           chatId,
@@ -183,11 +178,20 @@ export default function FastGptIntegrationPage() {
 
     // Try different response formats based on FastGPT documentation
     if (response.choices && response.choices[0]?.message?.content) {
-      return response.choices[0].message.content;
+      // Ensure the content is a string
+      const content = response.choices[0].message.content;
+      return typeof content === 'string'
+        ? content
+        : JSON.stringify(content, null, 2);
     }
 
-    // Return formatted JSON as fallback
-    return JSON.stringify(response, null, 2);
+    // Return formatted JSON as fallback but filter out interactive property to avoid rendering issues
+    const responseCopy = { ...response };
+    // Remove interactive property if it exists to avoid rendering issues
+    if ('interactive' in responseCopy) {
+      delete responseCopy.interactive;
+    }
+    return JSON.stringify(responseCopy, null, 2);
   };
 
   return (
@@ -301,10 +305,14 @@ export default function FastGptIntegrationPage() {
           </div>
         )}
 
-        {response && !isInteractiveMode && (
+        {response && (
           <div className={styles.responseContainer}>
             <h2 className={styles.responseTitle}>Response:</h2>
-            <div className={styles.responseContent}>{getResponseContent()}</div>
+            <div className={styles.responseContent}>
+              {isInteractiveMode
+                ? 'Please complete the form above to continue.'
+                : getResponseContent()}
+            </div>
           </div>
         )}
       </div>
