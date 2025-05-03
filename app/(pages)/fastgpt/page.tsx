@@ -1,9 +1,9 @@
-import FastGptIntegrationPage from './_components/Fastgpt';
+import FastGptChatInterface from './_components/Fastgpt';
 
 export default function Fastgpt() {
   return (
     <main>
-      <FastGptIntegrationPage />
+      <FastGptChatInterface />
     </main>
   );
 }

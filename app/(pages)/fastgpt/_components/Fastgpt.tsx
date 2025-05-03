@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import styles from './Fastgpt.module.scss';
 
@@ -33,6 +33,19 @@ interface InteractiveData {
   };
 }
 
+// Message interfaces
+interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string | Record<string, any>;
+  timestamp?: number;
+}
+
+// Interactive form message
+interface InteractiveFormMessage extends Message {
+  isInteractive: true;
+  interactiveData: InteractiveData;
+}
+
 // FastGPT response interfaces
 interface FastGptResponseChoice {
   message: {
@@ -56,14 +69,24 @@ interface FastGptResponse {
   interactive?: InteractiveData;
 }
 
-export default function FastGptIntegrationPage() {
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [response, setResponse] = useState<FastGptResponse | null>(null);
-  const [userInput, setUserInput] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
+export default function FastGptChatInterface() {
+  // Chat state
+  const [messages, setMessages] = useState<
+    (Message | InteractiveFormMessage)[]
+  >([
+    {
+      role: 'system',
+      content: 'Welcome! Ask me anything or request a service.',
+      timestamp: Date.now(),
+    },
+  ]);
 
-  // State for interactive mode
+  // Input state
+  const [userInput, setUserInput] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Interactive form state
   const [chatId] = useState<string>(`web-${Date.now()}`);
   const [isInteractiveMode, setIsInteractiveMode] = useState<boolean>(false);
   const [interactiveData, setInteractiveData] =
@@ -71,6 +94,22 @@ export default function FastGptIntegrationPage() {
   const [formValues, setFormValues] = useState<Record<string, string | number>>(
     {}
   );
+
+  // References
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Focus input when page loads
+  useEffect(() => {
+    if (inputRef.current && !isInteractiveMode) {
+      inputRef.current.focus();
+    }
+  }, [isInteractiveMode]);
 
   // Reset form values when interactive data changes
   useEffect(() => {
@@ -83,6 +122,12 @@ export default function FastGptIntegrationPage() {
     }
   }, [interactiveData]);
 
+  // Scroll to bottom of chat
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Handle form value changes
   const handleFormValueChange = (key: string, value: string | number) => {
     setFormValues((prev) => ({
       ...prev,
@@ -90,35 +135,71 @@ export default function FastGptIntegrationPage() {
     }));
   };
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // Handle sending a message
+  const handleSendMessage = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+
+    // Don't send empty messages
+    const inputToSend = isInteractiveMode ? formValues : userInput.trim();
+    if (
+      (!isInteractiveMode && !userInput.trim()) ||
+      (isInteractiveMode && Object.keys(formValues).length === 0)
+    ) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    setDebugInfo(null);
 
     try {
-      // Prepare the payload based on whether we're in interactive mode or not
+      // Add user message to chat
+      if (!isInteractiveMode) {
+        const newUserMessage: Message = {
+          role: 'user',
+          content: userInput,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, newUserMessage]);
+        setUserInput('');
+      } else {
+        // For interactive mode, add a message showing the form values
+        const formSummary = Object.entries(formValues)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join('\n');
+
+        const newUserMessage: Message = {
+          role: 'user',
+          content: `Form submitted:\n${formSummary}`,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, newUserMessage]);
+      }
+
+      // Prepare payload for API
       let payload;
 
       if (isInteractiveMode) {
+        // For interactive mode, serialize the form values to a JSON string
         const serializedFormValues = JSON.stringify(formValues);
         console.log('Serialized form values:', serializedFormValues);
-        // For interactive mode, serialize the form values as content
+
         payload = {
           chatId,
-          userInput: JSON.stringify(formValues),
+          userInput: serializedFormValues,
           isInteractive: true,
         };
       } else {
         // Standard initial request
         payload = {
           chatId,
-          userInput,
+          userInput: userInput.trim(),
           isInteractive: false,
         };
       }
 
-      // Call our API route which will then call FastGPT
+      // Call our API route
       console.log('Sending request to /api/fastgpt with payload:', payload);
       const response = await fetch('/api/fastgpt', {
         method: 'POST',
@@ -128,198 +209,301 @@ export default function FastGptIntegrationPage() {
         body: JSON.stringify(payload),
       });
 
-      // Get the full response regardless of status code
-      const responseText = await response.text();
-      let data;
-
-      try {
-        // Try to parse as JSON
-        data = JSON.parse(responseText);
-      } catch (e) {
-        // If not valid JSON, show the raw text for debugging
-        setDebugInfo(`Raw API response (not valid JSON): ${responseText}`);
-        throw new Error('Invalid response format from API');
-      }
-
       if (!response.ok) {
-        console.error('Error details:', data);
+        const errorData = await response.json();
         throw new Error(
-          data.error || `API request failed with status ${response.status}`
+          errorData.error || `API request failed with status ${response.status}`
         );
       }
 
+      const data: FastGptResponse = await response.json();
       console.log('FastGPT response:', data);
-      setResponse(data);
 
-      // Check if this is an interactive response
+      // Handle the response
       if (data.interactive) {
+        // Handle interactive response
         setIsInteractiveMode(true);
         setInteractiveData(data.interactive);
+
+        // Add an interactive message
+        const interactiveMessage: InteractiveFormMessage = {
+          role: 'assistant',
+          content:
+            data.interactive.params.description || 'Please fill out this form:',
+          isInteractive: true,
+          interactiveData: data.interactive,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, interactiveMessage]);
       } else {
-        // Reset interactive mode if we got a normal response
+        // Handle normal response
         setIsInteractiveMode(false);
         setInteractiveData(null);
+
+        // Extract response content
+        let responseContent = '';
+        if (data.choices && data.choices[0]?.message?.content) {
+          responseContent = data.choices[0].message.content;
+        } else {
+          responseContent =
+            'I received your message but could not generate a proper response.';
+        }
+
+        // Add assistant message
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content:
+            typeof responseContent === 'string'
+              ? responseContent
+              : JSON.stringify(responseContent),
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
       }
     } catch (err) {
-      console.error('Error calling API:', err);
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('An unknown error occurred');
-      }
+      console.error('Error sending message:', err);
+
+      // Add error message
+      const errorMessage =
+        err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+
+      // Add error as system message
+      const systemMessage: Message = {
+        role: 'system',
+        content: `Error: ${errorMessage}`,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, systemMessage]);
     } finally {
       setIsLoading(false);
+      // Reset form mode if we're done with interactive mode
+      if (!isInteractiveMode) {
+        setFormValues({});
+      }
     }
   };
 
-  // Extract FastGPT response content
-  const getResponseContent = (): string => {
-    if (!response) return '';
-
-    // Try different response formats based on FastGPT documentation
-    if (response.choices && response.choices[0]?.message?.content) {
-      // Ensure the content is a string
-      const content = response.choices[0].message.content;
-      return typeof content === 'string'
-        ? content
-        : JSON.stringify(content, null, 2);
+  // Handle textarea input (allow sending with Enter, but Shift+Enter for new line)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
+  };
 
-    // Return formatted JSON as fallback but filter out interactive property to avoid rendering issues
-    const responseCopy = { ...response };
-    // Remove interactive property if it exists to avoid rendering issues
-    if ('interactive' in responseCopy) {
-      delete responseCopy.interactive;
-    }
-    return JSON.stringify(responseCopy, null, 2);
+  // Auto-resize textarea as user types
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    setUserInput(textarea.value);
+
+    // Reset height to auto to get the correct scrollHeight
+    textarea.style.height = 'auto';
+    // Set the height to scrollHeight
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  };
+
+  // Render a chat message
+  const renderMessage = (
+    message: Message | InteractiveFormMessage,
+    index: number
+  ) => {
+    const isUser = message.role === 'user';
+    const isSystem = message.role === 'system';
+    const isInteractiveMessage =
+      'isInteractive' in message && message.isInteractive;
+
+    return (
+      <div
+        key={index}
+        className={`${styles.messageWrapper} ${
+          isUser
+            ? styles.userMessage
+            : isSystem
+            ? styles.systemMessage
+            : styles.assistantMessage
+        }`}
+      >
+        <div className={styles.messageBubble}>
+          {isUser && <div className={styles.messageAuthor}>You</div>}
+          {!isUser && !isSystem && (
+            <div className={styles.messageAuthor}>AI Assistant</div>
+          )}
+
+          <div className={styles.messageContent}>
+            {isInteractiveMessage ? (
+              <div className={styles.interactiveForm}>
+                <p>{message.content}</p>
+                {message.interactiveData.params.inputForm && (
+                  <form
+                    className={styles.form}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }}
+                  >
+                    {message.interactiveData.params.inputForm.map((field) => (
+                      <div key={field.key} className={styles.formField}>
+                        <label htmlFor={field.key} className={styles.formLabel}>
+                          {field.label}{' '}
+                          {field.required && (
+                            <span className={styles.required}>*</span>
+                          )}
+                        </label>
+
+                        {field.description && (
+                          <p className={styles.fieldDescription}>
+                            {field.description}
+                          </p>
+                        )}
+
+                        {field.type === 'input' && (
+                          <input
+                            id={field.key}
+                            type="text"
+                            className={styles.formInput}
+                            value={(formValues[field.key] as string) || ''}
+                            onChange={(e) =>
+                              handleFormValueChange(field.key, e.target.value)
+                            }
+                            required={field.required}
+                            placeholder={`Enter ${field.label.toLowerCase()}`}
+                          />
+                        )}
+
+                        {field.type === 'numberInput' && (
+                          <input
+                            id={field.key}
+                            type="number"
+                            className={styles.formInput}
+                            value={(formValues[field.key] as number) || ''}
+                            onChange={(e) =>
+                              handleFormValueChange(
+                                field.key,
+                                Number(e.target.value)
+                              )
+                            }
+                            required={field.required}
+                            placeholder={`Enter ${field.label.toLowerCase()}`}
+                          />
+                        )}
+
+                        {/* Add other field types as needed */}
+                      </div>
+                    ))}
+
+                    <button
+                      type="submit"
+                      className={styles.formSubmit}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </form>
+                )}
+
+                {message.interactiveData.params.userSelectOptions && (
+                  <div className={styles.selectOptions}>
+                    {message.interactiveData.params.userSelectOptions.map(
+                      (option) => (
+                        <button
+                          key={option.key}
+                          className={styles.selectOption}
+                          onClick={() => {
+                            // Handle selection option
+                            setFormValues({ [option.key]: option.value });
+                            handleSendMessage();
+                          }}
+                          disabled={isLoading}
+                        >
+                          {option.value}
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={styles.textContent}>
+                {
+                  typeof message.content === 'string'
+                    ? message.content.split('\n').map((line, i) => (
+                        <p key={i}>{line || '\u00A0'}</p> // Use non-breaking space for empty lines
+                      ))
+                    : JSON.stringify(message.content) // Handle non-string content
+                }
+              </div>
+            )}
+          </div>
+
+          {message.timestamp && (
+            <div className={styles.messageTimestamp}>
+              {new Date(message.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className={styles.container}>
-      <h1 className={styles.title}>AI Assistant</h1>
-      <p className={styles.subtitle}>
-        Ask a question and get an intelligent response powered by FastGPT
-      </p>
+    <div className={styles.chatContainer}>
+      <div className={styles.chatHeader}>
+        <h1>AI Assistant</h1>
+        <Link href="/" className={styles.homeLink}>
+          ← Home
+        </Link>
+      </div>
 
-      <div className={styles.cardContainer}>
-        {!isInteractiveMode ? (
-          // Regular input form
-          <form onSubmit={handleSubmit}>
-            <div className={styles.formGroup}>
-              <label htmlFor="userInput" className={styles.formLabel}>
-                Ask a question or provide some text to analyze
-              </label>
-              <textarea
-                id="userInput"
-                rows={4}
-                className={styles.textArea}
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                placeholder="Type your question here..."
-              />
-            </div>
+      <div className={styles.messagesContainer}>
+        {messages.map(renderMessage)}
+        <div ref={messagesEndRef} /> {/* Scroll anchor */}
+      </div>
 
-            <button
-              type="submit"
-              disabled={isLoading || !userInput.trim()}
-              className={styles.submitButton}
-            >
-              {isLoading ? 'Processing...' : 'Submit'}
-            </button>
-          </form>
-        ) : (
-          // Interactive form based on FastGPT response
-          <form onSubmit={handleSubmit}>
-            <div className={styles.formGroup}>
-              <h3>Interactive Input</h3>
-              {interactiveData?.params?.description && (
-                <p className={styles.subtitle}>
-                  {interactiveData.params.description}
-                </p>
-              )}
+      {error && (
+        <div className={styles.errorContainer}>
+          <p>{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className={styles.dismissButton}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
-              {interactiveData?.params?.inputForm?.map((field) => (
-                <div key={field.key} className={styles.formGroup}>
-                  <label htmlFor={field.key} className={styles.formLabel}>
-                    {field.label}{' '}
-                    {field.required && <span style={{ color: 'red' }}>*</span>}
-                  </label>
-                  {field.description && (
-                    <p className={styles.subtitle}>{field.description}</p>
-                  )}
-
-                  {field.type === 'input' && (
-                    <input
-                      id={field.key}
-                      type="text"
-                      className={styles.textArea}
-                      value={(formValues[field.key] as string) || ''}
-                      onChange={(e) =>
-                        handleFormValueChange(field.key, e.target.value)
-                      }
-                      required={field.required}
-                    />
-                  )}
-
-                  {field.type === 'numberInput' && (
-                    <input
-                      id={field.key}
-                      type="number"
-                      className={styles.textArea}
-                      value={(formValues[field.key] as number) || ''}
-                      onChange={(e) =>
-                        handleFormValueChange(field.key, Number(e.target.value))
-                      }
-                      required={field.required}
-                    />
-                  )}
-
-                  {/* You can add support for more field types as needed */}
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="submit"
+      {!isInteractiveMode && (
+        <form className={styles.inputForm} onSubmit={handleSendMessage}>
+          <div className={styles.inputWrapper}>
+            <textarea
+              ref={inputRef}
+              value={userInput}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              className={styles.messageInput}
               disabled={isLoading}
-              className={styles.submitButton}
+              rows={1}
+            />
+            <button
+              type="submit"
+              className={styles.sendButton}
+              disabled={isLoading || !userInput.trim()}
             >
-              {isLoading ? 'Processing...' : 'Continue'}
+              {isLoading ? 'Sending...' : 'Send'}
             </button>
-          </form>
-        )}
-
-        {error && (
-          <div className={styles.errorContainer}>
-            <p className={styles.errorTitle}>Error</p>
-            <p>{error}</p>
           </div>
-        )}
-
-        {debugInfo && (
-          <div className={styles.errorContainer}>
-            <p className={styles.errorTitle}>Debug Information</p>
-            <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
-              {debugInfo}
-            </pre>
-          </div>
-        )}
-
-        {response && (
-          <div className={styles.responseContainer}>
-            <h2 className={styles.responseTitle}>Response:</h2>
-            <div className={styles.responseContent}>
-              {isInteractiveMode
-                ? 'Please complete the form above to continue.'
-                : getResponseContent()}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className={styles.homeLink}>
-        <Link href="/">← Back to Home</Link>
-      </div>
+          <p className={styles.inputHint}>
+            Press Enter to send, Shift+Enter for new line
+          </p>
+        </form>
+      )}
     </div>
   );
 }

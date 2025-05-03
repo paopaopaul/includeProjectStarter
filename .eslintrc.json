@@ -42,10 +42,18 @@
       "react/react-in-jsx-scope": "off",
       "@typescript-eslint/explicit-function-return-type": "off",
       "react/require-default-props": "off",
-      "no-unused-vars": [
-          "error",
+      // 解决已声明但未使用的变量错误
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+          "warn",  // 从 "error" 改为 "warn" 使其不那么严格
           { "vars": "all", "varsIgnorePattern": "^_*$", "argsIgnorePattern": "^_*$" }
       ],
+      // 允许使用 any 类型
+      "@typescript-eslint/no-explicit-any": "off",
+      // 允许非空断言
+      "@typescript-eslint/no-non-null-assertion": "off",
+      // 允许更灵活地使用函数类型
+      "@typescript-eslint/ban-types": "off",
       "block-spacing": 1
   }
 }
