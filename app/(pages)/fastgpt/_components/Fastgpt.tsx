@@ -4,8 +4,35 @@ import { useState, FormEvent, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import styles from './Fastgpt.module.scss';
 
-// Interface for input form field
-interface InputFormField {
+// 过滤不需要的字段
+const filterMemoryEdges = (obj: any): any => {
+  if (!obj) return obj;
+
+  if (Array.isArray(obj)) {
+    return obj.map(filterMemoryEdges);
+  }
+
+  if (typeof obj === 'object' && obj !== null) {
+    const result: Record<string, any> = {};
+    for (const key in obj) {
+      if (key !== 'memoryEdges') {
+        result[key] = filterMemoryEdges(obj[key]);
+      }
+    }
+    return result;
+  }
+
+  return obj;
+};
+
+// 接口定义
+interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string | any;
+  timestamp?: number;
+}
+
+interface FormField {
   type: string;
   key: string;
   label: string;
@@ -14,193 +41,287 @@ interface InputFormField {
   defaultValue: string;
   valueType: string;
   required: boolean;
-  list: Array<{
-    label: string;
-    value: string;
-  }>;
+  list?: Array<{ label: string; value: string }>;
 }
 
-// Interface for interactive node data
-interface InteractiveData {
-  type: string;
-  params: {
-    description: string;
-    inputForm?: InputFormField[];
-    userSelectOptions?: Array<{
-      value: string;
-      key: string;
-    }>;
-  };
-}
-
-// Message interfaces
-interface Message {
-  role: 'user' | 'assistant' | 'system';
-  content: string | Record<string, any>;
-  timestamp?: number;
-}
-
-// Interactive form message
-interface InteractiveFormMessage extends Message {
-  isInteractive: true;
-  interactiveData: InteractiveData;
-}
-
-// FastGPT response interfaces
-interface FastGptResponseChoice {
-  message: {
-    role: string;
-    content: string;
-  };
-  finish_reason: string;
-  index: number;
-  type?: string;
-}
-
-interface FastGptResponse {
-  id?: string;
-  model?: string;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-  choices?: FastGptResponseChoice[];
-  interactive?: InteractiveData;
-}
-
-export default function FastGptChatInterface() {
-  // Chat state
-  const [messages, setMessages] = useState<
-    (Message | InteractiveFormMessage)[]
-  >([
+// 主组件
+export default function FastGptChat() {
+  // 基本状态
+  const [messages, setMessages] = useState<Message[]>([
     {
       role: 'system',
-      content: 'Welcome! Ask me anything or request a service.',
+      content: 'Welcome! How can I help you today?',
       timestamp: Date.now(),
     },
   ]);
-
-  // Input state
-  const [userInput, setUserInput] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Interactive form state
-  const [chatId] = useState<string>(`web-${Date.now()}`);
-  const [isInteractiveMode, setIsInteractiveMode] = useState<boolean>(false);
-  const [interactiveData, setInteractiveData] =
-    useState<InteractiveData | null>(null);
-  const [formValues, setFormValues] = useState<Record<string, string | number>>(
-    {}
-  );
+  // 表单相关状态
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [formFields, setFormFields] = useState<FormField[]>([]);
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [formDescription, setFormDescription] = useState('');
+  const [showForm, setShowForm] = useState(false);
 
-  // References
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // 调试状态
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
+
+  // 引用
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto scroll to bottom when messages change
+  // 自动滚动
   useEffect(() => {
-    scrollToBottom();
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages]);
 
-  // Focus input when page loads
+  // 初始化焦点
   useEffect(() => {
-    if (inputRef.current && !isInteractiveMode) {
-      inputRef.current.focus();
+    if (!showForm) {
+      inputRef.current?.focus();
     }
-  }, [isInteractiveMode]);
+  }, [showForm]);
 
-  // Reset form values when interactive data changes
-  useEffect(() => {
-    if (interactiveData?.params?.inputForm) {
-      const initialValues: Record<string, string | number> = {};
-      interactiveData.params.inputForm.forEach((field) => {
-        initialValues[field.key] = field.defaultValue || '';
-      });
-      setFormValues(initialValues);
-    }
-  }, [interactiveData]);
+  // 处理输入变化
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
 
-  // Scroll to bottom of chat
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // 自动调整高度
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
   };
 
-  // Handle form value changes
-  const handleFormValueChange = (key: string, value: string | number) => {
+  // 处理表单字段变化
+  const handleFormValueChange = (key: string, value: string) => {
     setFormValues((prev) => ({
       ...prev,
       [key]: value,
     }));
   };
 
-  // Handle sending a message
+  // 处理键盘事件
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // 处理 API 响应中的表单数据
+  const processFormData = (data: any) => {
+    console.log('PROCESSING DATA:', typeof data);
+
+    // 递归查找具有 'interactive' 键的对象
+    const findInteractive = (obj: any): any => {
+      if (!obj || typeof obj !== 'object') return null;
+
+      if ('interactive' in obj) {
+        console.log('FOUND INTERACTIVE');
+        return obj.interactive;
+      }
+
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          const result = findInteractive(item);
+          if (result) return result;
+        }
+      } else {
+        for (const key in obj) {
+          const result = findInteractive(obj[key]);
+          if (result) return result;
+        }
+      }
+
+      return null;
+    };
+
+    // 深度搜索交互式数据
+    const formData = findInteractive(data);
+    console.log('FORM DATA FOUND:', formData);
+
+    // 如果找到表单数据，提取字段
+    if (formData && formData.params) {
+      console.log('EXTRACTING FORM FIELDS');
+      const description =
+        formData.params.description || 'Please fill out this form:';
+      const inputForm = formData.params.inputForm;
+
+      console.log('DESCRIPTION:', description);
+
+      if (inputForm && Array.isArray(inputForm) && inputForm.length > 0) {
+        console.log('FORM FIELDS FOUND:', inputForm.length);
+
+        // 设置表单数据
+        setFormDescription(description);
+        setFormFields(inputForm);
+
+        // 初始化表单值
+        const initialValues: Record<string, string> = {};
+        inputForm.forEach((field) => {
+          initialValues[field.key] = field.defaultValue || '';
+        });
+        setFormValues(initialValues);
+
+        // 显示表单
+        setShowForm(true);
+        setDebugInfo(`Form with ${inputForm.length} fields ready to display`);
+
+        return true;
+      } else {
+        console.warn('NO VALID FORM FIELDS FOUND');
+        setDebugInfo('No valid form fields found');
+      }
+    } else {
+      console.warn('NO FORM DATA OR PARAMS FOUND');
+      setDebugInfo('No form data or params found');
+    }
+
+    return false;
+  };
+
+  // 发送消息
   const handleSendMessage = async (e?: FormEvent) => {
     if (e) e.preventDefault();
 
-    // Don't send empty messages
-    const inputToSend = isInteractiveMode ? formValues : userInput.trim();
-    if (
-      (!isInteractiveMode && !userInput.trim()) ||
-      (isInteractiveMode && Object.keys(formValues).length === 0)
-    ) {
-      return;
-    }
+    // 表单模式
+    if (showForm) {
+      setDebugInfo('Processing form submission...');
 
-    setIsLoading(true);
-    setError(null);
+      // 验证所有必填字段
+      const missingRequired = formFields.filter(
+        (field) => field.required && !formValues[field.key]?.trim()
+      );
 
-    try {
-      // Add user message to chat
-      if (!isInteractiveMode) {
-        const newUserMessage: Message = {
-          role: 'user',
-          content: userInput,
-          timestamp: Date.now(),
-        };
+      if (missingRequired.length > 0) {
+        const errorMsg = `Please fill in the required fields: ${missingRequired
+          .map((f) => f.label)
+          .join(', ')}`;
+        setError(errorMsg);
+        setDebugInfo(errorMsg);
+        return;
+      }
 
-        setMessages((prev) => [...prev, newUserMessage]);
-        setUserInput('');
-      } else {
-        // For interactive mode, add a message showing the form values
-        const formSummary = Object.entries(formValues)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join('\n');
+      setError(null);
 
-        const newUserMessage: Message = {
+      // 添加表单提交消息
+      const formSummary = Object.entries(formValues)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('\n');
+
+      setMessages((prev) => [
+        ...prev,
+        {
           role: 'user',
           content: `Form submitted:\n${formSummary}`,
           timestamp: Date.now(),
-        };
+        },
+      ]);
 
-        setMessages((prev) => [...prev, newUserMessage]);
-      }
+      // 准备发送表单数据
+      setIsLoading(true);
 
-      // Prepare payload for API
-      let payload;
-
-      if (isInteractiveMode) {
-        // For interactive mode, serialize the form values to a JSON string
+      try {
+        // 将表单值序列化为 JSON 字符串
         const serializedFormValues = JSON.stringify(formValues);
-        console.log('Serialized form values:', serializedFormValues);
+        console.log('FORM VALUES SERIALIZED:', serializedFormValues);
 
-        payload = {
-          chatId,
-          userInput: serializedFormValues,
-          isInteractive: true,
-        };
-      } else {
-        // Standard initial request
-        payload = {
-          chatId,
-          userInput: userInput.trim(),
-          isInteractive: false,
-        };
+        const response = await fetch('/api/fastgpt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chatId,
+            userInput: serializedFormValues,
+            isInteractive: true,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('FORM SUBMISSION RESPONSE:', filterMemoryEdges(data));
+
+        // 处理响应
+        let responseContent = '';
+        if (data.choices && data.choices[0]?.message?.content) {
+          responseContent = data.choices[0].message.content;
+        } else {
+          responseContent = JSON.stringify(filterMemoryEdges(data), null, 2);
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: responseContent,
+            timestamp: Date.now(),
+          },
+        ]);
+
+        // 清空表单
+        setFormValues({});
+        setShowForm(false);
+        setDebugInfo('Form processed successfully');
+      } catch (err) {
+        console.error('Error submitting form:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        setDebugInfo(
+          `Form submission error: ${
+            err instanceof Error ? err.message : 'Unknown error'
+          }`
+        );
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'system',
+            content: `Error: ${
+              err instanceof Error ? err.message : 'Unknown error'
+            }`,
+            timestamp: Date.now(),
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
       }
 
-      // Call our API route
-      console.log('Sending request to /api/fastgpt with payload:', payload);
+      return;
+    }
+
+    // 普通聊天模式
+    if (!input.trim()) return;
+
+    // 添加用户消息
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'user',
+        content: input,
+        timestamp: Date.now(),
+      },
+    ]);
+
+    setInput('');
+    setIsLoading(true);
+    setDebugInfo('Sending message to API...');
+
+    try {
+      // 准备 API 请求
+      const payload = {
+        chatId: chatId || undefined,
+        userInput: input.trim(),
+        isInteractive: false,
+      };
+
       const response = await fetch('/api/fastgpt', {
         method: 'POST',
         headers: {
@@ -210,260 +331,123 @@ export default function FastGptChatInterface() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || `API request failed with status ${response.status}`
-        );
+        throw new Error(`API error: ${response.status}`);
       }
 
-      const data: FastGptResponse = await response.json();
-      console.log('FastGPT response:', data);
+      const data = await response.json();
+      console.log('API RESPONSE:', data);
+      setDebugInfo('Response received, processing...');
 
-      // Handle the response
-      if (data.interactive) {
-        // Handle interactive response
-        setIsInteractiveMode(true);
-        setInteractiveData(data.interactive);
+      // 保存 chatId
+      if (data.id && !chatId) {
+        setChatId(data.id);
+        console.log('CHAT ID SET:', data.id);
+      }
 
-        // Add an interactive message
-        const interactiveMessage: InteractiveFormMessage = {
-          role: 'assistant',
-          content:
-            data.interactive.params.description || 'Please fill out this form:',
-          isInteractive: true,
-          interactiveData: data.interactive,
-          timestamp: Date.now(),
-        };
+      // 处理响应中的表单数据
+      const hasForm = processFormData(data);
 
-        setMessages((prev) => [...prev, interactiveMessage]);
+      // 如果没有表单，显示普通响应
+      if (hasForm) {
+        setDebugInfo('Found form in response, waiting for user input');
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: formDescription,
+            timestamp: Date.now(),
+          },
+        ]);
+
+        return;
       } else {
-        // Handle normal response
-        setIsInteractiveMode(false);
-        setInteractiveData(null);
+        setDebugInfo('No form found, showing regular response');
+        // 如果处理了表单，添加表单提示消息
+        const responseContent =
+          data.choices?.[0]?.message?.content ||
+          JSON.stringify(filterMemoryEdges(data), null, 2);
 
-        // Extract response content
-        let responseContent = '';
-        if (data.choices && data.choices[0]?.message?.content) {
-          responseContent = data.choices[0].message.content;
-        } else {
-          responseContent =
-            'I received your message but could not generate a proper response.';
-        }
-
-        // Add assistant message
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content:
-            typeof responseContent === 'string'
-              ? responseContent
-              : JSON.stringify(responseContent),
-          timestamp: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: responseContent,
+            timestamp: Date.now(),
+          },
+        ]);
       }
     } catch (err) {
       console.error('Error sending message:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setDebugInfo(
+        `Error: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
 
-      // Add error message
-      const errorMessage =
-        err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
-
-      // Add error as system message
-      const systemMessage: Message = {
-        role: 'system',
-        content: `Error: ${errorMessage}`,
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, systemMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'system',
+          content: `Error: ${
+            err instanceof Error ? err.message : 'Unknown error'
+          }`,
+          timestamp: Date.now(),
+        },
+      ]);
     } finally {
       setIsLoading(false);
-      // Reset form mode if we're done with interactive mode
-      if (!isInteractiveMode) {
-        setFormValues({});
-      }
     }
   };
 
-  // Handle textarea input (allow sending with Enter, but Shift+Enter for new line)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  // Auto-resize textarea as user types
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const textarea = e.target;
-    setUserInput(textarea.value);
-
-    // Reset height to auto to get the correct scrollHeight
-    textarea.style.height = 'auto';
-    // Set the height to scrollHeight
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  };
-
-  // Render a chat message
-  const renderMessage = (
-    message: Message | InteractiveFormMessage,
-    index: number
-  ) => {
+  // 渲染消息
+  const renderMessage = (message: Message, index: number) => {
     const isUser = message.role === 'user';
     const isSystem = message.role === 'system';
-    const isInteractiveMessage =
-      'isInteractive' in message && message.isInteractive;
 
     return (
       <div
         key={index}
-        className={`${styles.messageWrapper} ${
-          isUser
-            ? styles.userMessage
-            : isSystem
-            ? styles.systemMessage
-            : styles.assistantMessage
+        className={`${styles.message} ${
+          isUser ? styles.user : isSystem ? styles.system : styles.assistant
         }`}
       >
-        <div className={styles.messageBubble}>
-          {isUser && <div className={styles.messageAuthor}>You</div>}
-          {!isUser && !isSystem && (
-            <div className={styles.messageAuthor}>AI Assistant</div>
-          )}
-
-          <div className={styles.messageContent}>
-            {isInteractiveMessage ? (
-              <div className={styles.interactiveForm}>
-                <p>{message.content}</p>
-                {message.interactiveData.params.inputForm && (
-                  <form
-                    className={styles.form}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }}
-                  >
-                    {message.interactiveData.params.inputForm.map((field) => (
-                      <div key={field.key} className={styles.formField}>
-                        <label htmlFor={field.key} className={styles.formLabel}>
-                          {field.label}{' '}
-                          {field.required && (
-                            <span className={styles.required}>*</span>
-                          )}
-                        </label>
-
-                        {field.description && (
-                          <p className={styles.fieldDescription}>
-                            {field.description}
-                          </p>
-                        )}
-
-                        {field.type === 'input' && (
-                          <input
-                            id={field.key}
-                            type="text"
-                            className={styles.formInput}
-                            value={(formValues[field.key] as string) || ''}
-                            onChange={(e) =>
-                              handleFormValueChange(field.key, e.target.value)
-                            }
-                            required={field.required}
-                            placeholder={`Enter ${field.label.toLowerCase()}`}
-                          />
-                        )}
-
-                        {field.type === 'numberInput' && (
-                          <input
-                            id={field.key}
-                            type="number"
-                            className={styles.formInput}
-                            value={(formValues[field.key] as number) || ''}
-                            onChange={(e) =>
-                              handleFormValueChange(
-                                field.key,
-                                Number(e.target.value)
-                              )
-                            }
-                            required={field.required}
-                            placeholder={`Enter ${field.label.toLowerCase()}`}
-                          />
-                        )}
-
-                        {/* Add other field types as needed */}
-                      </div>
-                    ))}
-
-                    <button
-                      type="submit"
-                      className={styles.formSubmit}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Submitting...' : 'Submit'}
-                    </button>
-                  </form>
-                )}
-
-                {message.interactiveData.params.userSelectOptions && (
-                  <div className={styles.selectOptions}>
-                    {message.interactiveData.params.userSelectOptions.map(
-                      (option) => (
-                        <button
-                          key={option.key}
-                          className={styles.selectOption}
-                          onClick={() => {
-                            // Handle selection option
-                            setFormValues({ [option.key]: option.value });
-                            handleSendMessage();
-                          }}
-                          disabled={isLoading}
-                        >
-                          {option.value}
-                        </button>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className={styles.textContent}>
-                {
-                  typeof message.content === 'string'
-                    ? message.content.split('\n').map((line, i) => (
-                        <p key={i}>{line || '\u00A0'}</p> // Use non-breaking space for empty lines
-                      ))
-                    : JSON.stringify(message.content) // Handle non-string content
-                }
-              </div>
-            )}
-          </div>
-
-          {message.timestamp && (
-            <div className={styles.messageTimestamp}>
-              {new Date(message.timestamp).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </div>
+        <div className={styles.messageContent}>
+          {typeof message.content === 'string' ? (
+            message.content
+              .split('\n')
+              .map((line, i) => <p key={i}>{line || ' '}</p>)
+          ) : (
+            <pre className={styles.codeBlock}>
+              {JSON.stringify(filterMemoryEdges(message.content), null, 2)}
+            </pre>
           )}
         </div>
+        {message.timestamp && (
+          <div className={styles.timestamp}>
+            {new Date(message.timestamp).toLocaleTimeString()}
+          </div>
+        )}
       </div>
     );
   };
 
   return (
-    <div className={styles.chatContainer}>
-      <div className={styles.chatHeader}>
+    <div className={styles.container}>
+      <div className={styles.header}>
         <h1>AI Assistant</h1>
         <Link href="/" className={styles.homeLink}>
           ← Home
         </Link>
       </div>
 
-      <div className={styles.messagesContainer}>
+      {debugInfo && (
+        <div className={styles.debugInfo}>
+          <p>Debug: {debugInfo}</p>
+          <button onClick={() => setDebugInfo(null)}>Clear</button>
+        </div>
+      )}
+
+      <div className={styles.messagesContainer} ref={messagesContainerRef}>
         {messages.map(renderMessage)}
-        <div ref={messagesEndRef} /> {/* Scroll anchor */}
       </div>
 
       {error && (
@@ -478,30 +462,71 @@ export default function FastGptChatInterface() {
         </div>
       )}
 
-      {!isInteractiveMode && (
-        <form className={styles.inputForm} onSubmit={handleSendMessage}>
-          <div className={styles.inputWrapper}>
-            <textarea
-              ref={inputRef}
-              value={userInput}
-              onChange={handleTextareaChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              className={styles.messageInput}
-              disabled={isLoading}
-              rows={1}
-            />
-            <button
-              type="submit"
-              className={styles.sendButton}
-              disabled={isLoading || !userInput.trim()}
-            >
-              {isLoading ? 'Sending...' : 'Send'}
-            </button>
-          </div>
-          <p className={styles.inputHint}>
-            Press Enter to send, Shift+Enter for new line
-          </p>
+      {showForm ? (
+        <div className={styles.formContainer}>
+          <h3>{formDescription}</h3>
+          <form onSubmit={handleSendMessage}>
+            {formFields.map((field) => (
+              <div key={field.key} className={styles.formField}>
+                <label className={styles.formLabel}>
+                  {field.label}{' '}
+                  {field.required && <span className={styles.required}>*</span>}
+                </label>
+                {field.description && (
+                  <p className={styles.fieldDescription}>{field.description}</p>
+                )}
+
+                <input
+                  type={field.type === 'numberInput' ? 'number' : 'text'}
+                  value={formValues[field.key] || ''}
+                  onChange={(e) =>
+                    handleFormValueChange(field.key, e.target.value)
+                  }
+                  required={field.required}
+                  placeholder={`Enter ${field.label.toLowerCase()}`}
+                  className={styles.input}
+                />
+              </div>
+            ))}
+
+            <div className={styles.formButtons}>
+              <button
+                type="submit"
+                className={styles.submitButton}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Submitting...' : 'Submit'}
+              </button>
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={() => setShowForm(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        <form onSubmit={handleSendMessage} className={styles.inputForm}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message..."
+            className={styles.input}
+            disabled={isLoading}
+            rows={1}
+          />
+          <button
+            type="submit"
+            className={styles.sendButton}
+            disabled={isLoading || !input.trim()}
+          >
+            {isLoading ? 'Sending...' : 'Send'}
+          </button>
         </form>
       )}
     </div>
