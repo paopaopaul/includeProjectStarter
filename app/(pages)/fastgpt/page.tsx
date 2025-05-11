@@ -1,9 +1,10 @@
-import FastGptChatInterface from './_components/Fastgpt';
+// app/(pages)/fastgpt/page.tsx
+import FastGptChat from './_components/Fastgpt';
 
-export default function Fastgpt() {
+export default function FastGptPage() {
   return (
     <main>
-      <FastGptChatInterface />
+      <FastGptChat />
     </main>
   );
 }

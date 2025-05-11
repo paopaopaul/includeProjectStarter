@@ -49,7 +49,7 @@ export default function FastGptChat() {
   // 基本状态
   const [messages, setMessages] = useState<Message[]>([
     {
-      role: 'system',
+      role: 'assistant',
       content: 'Welcome! How can I help you today?',
       timestamp: Date.now(),
     },
@@ -69,15 +69,12 @@ export default function FastGptChat() {
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   // 引用
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // 自动滚动
   useEffect(() => {
-    if (messagesContainerRef.current) {
-      const container = messagesContainerRef.current;
-      container.scrollTop = container.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   // 初始化焦点
@@ -85,7 +82,7 @@ export default function FastGptChat() {
     if (!showForm) {
       inputRef.current?.focus();
     }
-  }, [showForm]);
+  }, [showForm, isLoading]);
 
   // 处理输入变化
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -94,7 +91,7 @@ export default function FastGptChat() {
     // 自动调整高度
     const textarea = e.target;
     textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
   };
 
   // 处理表单字段变化
@@ -398,42 +395,20 @@ export default function FastGptChat() {
     }
   };
 
-  // 渲染消息
-  const renderMessage = (message: Message, index: number) => {
-    const isUser = message.role === 'user';
-    const isSystem = message.role === 'system';
-
-    return (
-      <div
-        key={index}
-        className={`${styles.message} ${
-          isUser ? styles.user : isSystem ? styles.system : styles.assistant
-        }`}
-      >
-        <div className={styles.messageContent}>
-          {typeof message.content === 'string' ? (
-            message.content
-              .split('\n')
-              .map((line, i) => <p key={i}>{line || ' '}</p>)
-          ) : (
-            <pre className={styles.codeBlock}>
-              {JSON.stringify(filterMemoryEdges(message.content), null, 2)}
-            </pre>
-          )}
-        </div>
-        {message.timestamp && (
-          <div className={styles.timestamp}>
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </div>
-        )}
-      </div>
-    );
+  // 格式化时间戳为可读时间
+  const formatTimestamp = (timestamp?: number) => {
+    if (!timestamp) return '';
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={styles.chatContainer}>
+      <div className={styles.chatHeader}>
         <h1>AI Assistant</h1>
+        <p>Powered by FastGPT</p>
         <Link href="/" className={styles.homeLink}>
           ← Home
         </Link>
@@ -441,31 +416,93 @@ export default function FastGptChat() {
 
       {debugInfo && (
         <div className={styles.debugInfo}>
-          <p>Debug: {debugInfo}</p>
-          <button onClick={() => setDebugInfo(null)}>Clear</button>
+          <span>{debugInfo}</span>
+          <button
+            onClick={() => setDebugInfo(null)}
+            className={styles.clearButton}
+          >
+            ×
+          </button>
         </div>
       )}
 
-      <div className={styles.messagesContainer} ref={messagesContainerRef}>
-        {messages.map(renderMessage)}
+      <div className={styles.messagesContainer}>
+        {messages.map((message, index) => {
+          const isUser = message.role === 'user';
+          const isSystem = message.role === 'system';
+          return (
+            <div
+              key={index}
+              className={`${styles.messageWrapper} ${
+                isUser
+                  ? styles.userMessageWrapper
+                  : isSystem
+                  ? styles.systemMessageWrapper
+                  : styles.assistantMessageWrapper
+              }`}
+            >
+              <div
+                className={`${styles.messageBubble} ${
+                  isUser
+                    ? styles.userMessage
+                    : isSystem
+                    ? styles.systemMessage
+                    : styles.assistantMessage
+                }`}
+              >
+                {typeof message.content === 'string' ? (
+                  message.content
+                    .split('\n')
+                    .map((line, i) => <p key={i}>{line || ' '}</p>)
+                ) : (
+                  <pre className={styles.codeBlock}>
+                    {JSON.stringify(
+                      filterMemoryEdges(message.content),
+                      null,
+                      2
+                    )}
+                  </pre>
+                )}
+              </div>
+              {message.timestamp && (
+                <div className={styles.messageTime}>
+                  {formatTimestamp(message.timestamp)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {isLoading && (
+          <div
+            className={`${styles.messageWrapper} ${styles.assistantMessageWrapper}`}
+          >
+            <div
+              className={`${styles.messageBubble} ${styles.assistantMessage} ${styles.typingIndicator}`}
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
       {error && (
-        <div className={styles.errorContainer}>
+        <div className={styles.errorMessage}>
           <p>{error}</p>
-          <button
-            onClick={() => setError(null)}
-            className={styles.dismissButton}
-          >
-            Dismiss
+          <button onClick={() => setError(null)} className={styles.clearButton}>
+            ×
           </button>
         </div>
       )}
 
       {showForm ? (
         <div className={styles.formContainer}>
-          <h3>{formDescription}</h3>
-          <form onSubmit={handleSendMessage}>
+          <h3 className={styles.formTitle}>{formDescription}</h3>
+          <form onSubmit={handleSendMessage} className={styles.form}>
             {formFields.map((field) => (
               <div key={field.key} className={styles.formField}>
                 <label className={styles.formLabel}>
@@ -475,7 +512,6 @@ export default function FastGptChat() {
                 {field.description && (
                   <p className={styles.fieldDescription}>{field.description}</p>
                 )}
-
                 <input
                   type={field.type === 'numberInput' ? 'number' : 'text'}
                   value={formValues[field.key] || ''}
@@ -484,7 +520,7 @@ export default function FastGptChat() {
                   }
                   required={field.required}
                   placeholder={`Enter ${field.label.toLowerCase()}`}
-                  className={styles.input}
+                  className={styles.formInput}
                 />
               </div>
             ))}
@@ -515,8 +551,8 @@ export default function FastGptChat() {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            className={styles.input}
+            placeholder="Type your message here..."
+            className={styles.messageInput}
             disabled={isLoading}
             rows={1}
           />
@@ -525,7 +561,7 @@ export default function FastGptChat() {
             className={styles.sendButton}
             disabled={isLoading || !input.trim()}
           >
-            {isLoading ? 'Sending...' : 'Send'}
+            {isLoading ? '...' : 'Send'}
           </button>
         </form>
       )}
