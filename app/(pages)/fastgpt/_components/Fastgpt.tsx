@@ -25,6 +25,59 @@ const filterMemoryEdges = (obj: any): any => {
   return obj;
 };
 
+// 提取 answerText 内容
+const extractAnswerText = (obj: any): string | null => {
+  if (!obj) return null;
+
+  // 如果是数组，递归每一项
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const result = extractAnswerText(item);
+      if (result) return result;
+    }
+  }
+
+  // 如果是对象，查找 key === 'answerText'
+  if (typeof obj === 'object') {
+    if (obj.key === 'answerText') {
+      return obj.value;
+    }
+
+    for (const key in obj) {
+      const result = extractAnswerText(obj[key]);
+      if (result) return result;
+    }
+  }
+
+  return null;
+};
+
+const extractReasoningText = (data: any): string | null => {
+  if (!data) return null;
+
+  // 如果 data 是数组，递归每一项
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const result = extractReasoningText(item);
+      if (result) return result;
+    }
+  }
+
+  // 如果是对象，查找 key === 'reasoningText'
+  if (typeof data === 'object') {
+    if (data.key === 'reasoningText') {
+      return data.value;
+    }
+
+    for (const key in data) {
+      const result = extractReasoningText(data[key]);
+      if (result) return result;
+    }
+  }
+
+  return null;
+};
+
 // 接口定义
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -245,16 +298,28 @@ export default function FastGptChat() {
         }
 
         const data = await response.json();
+        console.log('[DEBUG] Full API response data:', data);
         console.log('FORM SUBMISSION RESPONSE:', filterMemoryEdges(data));
 
         // 处理响应
+        // Step 1: 提取 answerText 和 reasoningText
+        const extractedAnswerText = extractAnswerText(data);
+        console.log('[DEBUG] Extracted AnswerText:', extractedAnswerText);
+
+        const extractedReasoningText = extractReasoningText(data);
+        console.log('[DEBUG] Extracted ReasoningText:', extractedReasoningText);
+
+        // Step 2: 决定 responseContent
         let responseContent = '';
-        if (data.choices && data.choices[0]?.message?.content) {
+        if (extractedAnswerText) {
+          responseContent = extractedAnswerText;
+        } else if (data.choices?.[0]?.message?.content) {
           responseContent = data.choices[0].message.content;
         } else {
           responseContent = JSON.stringify(filterMemoryEdges(data), null, 2);
         }
 
+        // Step 3: 展示 assistant 回复
         setMessages((prev) => [
           ...prev,
           {
@@ -332,7 +397,7 @@ export default function FastGptChat() {
       }
 
       const data = await response.json();
-      console.log('API RESPONSE:', data);
+      console.log('[DEBUG] Full API response data:', data);
       setDebugInfo('Response received, processing...');
 
       // 保存 chatId
@@ -360,10 +425,21 @@ export default function FastGptChat() {
       } else {
         setDebugInfo('No form found, showing regular response');
         // 如果处理了表单，添加表单提示消息
-        const responseContent =
-          data.choices?.[0]?.message?.content ||
-          JSON.stringify(filterMemoryEdges(data), null, 2);
+        // Step 1: 提取 answerText
+        const extractedAnswerText = extractAnswerText(data);
+        console.log('[DEBUG] Extracted AnswerText:', extractedAnswerText);
 
+        // Step 2: 决定 responseContent
+        let responseContent = '';
+        if (extractedAnswerText) {
+          responseContent = extractedAnswerText;
+        } else if (data.choices?.[0]?.message?.content) {
+          responseContent = data.choices[0].message.content;
+        } else {
+          responseContent = JSON.stringify(filterMemoryEdges(data), null, 2);
+        }
+
+        // Step 3: 展示 assistant 回复
         setMessages((prev) => [
           ...prev,
           {
