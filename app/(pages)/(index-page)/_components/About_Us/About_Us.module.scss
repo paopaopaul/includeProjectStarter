@@ -1,0 +1,159 @@
+.wrapper {
+  width: 100%;
+  padding: 4rem 0;
+}
+
+// Container styles (equivalent to .v-container)
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  
+  > div {
+    max-width: 100%;
+    height: auto;
+    flex: 1;
+  }
+  
+  // Media query for responsive layout
+  @media (max-width: 1024px) {
+    flex-direction: column;
+  }
+}
+
+// Left side with image
+.left {
+  flex: 1;
+  
+  .imageContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+    position: relative;
+    width: 100%;
+    max-width: 450px;
+    
+    // Dome shape styling
+    border: 8px solid rgba(232, 232, 232, 0.93);
+    border-radius: 50% 50% 0 0; // This creates the dome shape - rounded at top
+    overflow: hidden; // Important to clip the image to the dome shape
+    
+    // Force proper aspect ratio for dome
+    &::before {
+      content: "";
+      display: block;
+      padding-top: 100%; // Makes the container square before applying dome shape
+    }
+    
+    // Position the image properly within the dome
+    img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover; // This ensures the image fills the dome shape
+    }
+  }
+}
+
+// Right side with accordion
+.right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem; // This matches your .v-right gap
+}
+
+// Tag styling (Information text)
+.tag {
+  font-size: 0.875rem;
+  color: #ff6b00; // Orange color
+  font-weight: 500;
+}
+
+// Title styling (Who We Are)
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+// Description styling
+.description {
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+// Accordion container
+.accordion {
+  margin-top: 2rem;
+  border: none;
+}
+
+// Individual accordion item
+.accordionItem {
+  background: white;
+  border: 0.8px solid rgba(128, 128, 128, 0.143);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  
+  &.expanded {
+    box-shadow: var(--shadow);
+    border-radius: 10px;
+  }
+}
+
+// Accordion button (header)
+.accordionButton {
+  background: white;
+  padding: 1rem;
+  width: 100%;
+  justify-content: space-between;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+// Icon container
+.icon {
+  padding: 10px;
+  background: #eeeeff;
+  border-radius: 5px; // Fixed from 'border: 5px' to 'border-radius: 5px'
+  margin-right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    fill: var(--blue);
+  }
+}
+
+// Dropdown icon on the right
+.dropdownIcon {
+  margin-left: auto;
+}
+
+// Item heading (text in the accordion button)
+.itemHeading {
+  font-size: 1.1rem;
+  font-weight: 600;
+  
+  @media (max-width: 768px) {
+    font-size: 0.8rem;
+  }
+}
+
+// Item detail (text in the accordion panel)
+.itemDetail {
+  padding: 0.5rem 1rem 1.5rem;
+  color: #666;
+  font-size: 0.9rem;
+}

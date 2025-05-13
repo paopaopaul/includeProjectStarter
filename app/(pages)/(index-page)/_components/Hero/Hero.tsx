@@ -18,9 +18,7 @@ export default function Hero() {
             <div className={styles.tag}>Version 1.0</div>
             <h1 className={styles.title}>Pathway to Self-discovery</h1>
             <p className={styles.description}>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
-              quos. dasjfd saflsd ads fa dsaf sa df saf ds fasd fasd dfasd f
-              saflsd
+              There is a right time for everything.
             </p>
             <div className={styles.button}>
               <button

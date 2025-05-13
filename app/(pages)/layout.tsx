@@ -10,7 +10,7 @@ import Footer from './_components/Footer/Footer';
 export { metadata };
 
 export default function RootLayout({
-  children, // will be a page or nested layout
+  children,
 }: {
   children: React.ReactNode;
 }) {
